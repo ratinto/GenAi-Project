@@ -22,11 +22,30 @@ def engineer_features():
     # Create features
     print("\n2. Creating features...")
     
-    # A. Mileage (cumulative distance - KEY FEATURE!)
-    df['Mileage'] = df['Distance']  # Distance is already cumulative in F1 data
-    df['Mileage_Normalized'] = df['Mileage'] / df['Mileage'].max()
-    print("   ✓ Mileage features (2)")
-    
+    print("   ✓ Standard wheel diameter")
+    df['Tyre_Radius']=720   #in milimeters
+
+    #A.Traction Health
+    # Convert speed from km/h to m/s
+    df['Speed_mps'] = df['Speed'] * (1000/3600)
+
+    # Estimate wheel angular velocity (assuming driven wheels)
+    # If no wheel speed available, approximate using RPM & gear ratio (simplified)
+    df['Wheel_Omega'] = (df['RPM'] / 60) * (2 * np.pi)
+
+    # Effective rolling radius (dynamic approximation)
+    df['R_eff'] = df['Speed_mps'] / (df['Wheel_Omega'] + 1e-6)
+
+    # Slip Ratio
+    df['Slip_Ratio'] = (
+    (df['Wheel_Omega'] * df['R_eff'] - df['Speed_mps']) /
+    (df['Speed_mps'] + 1e-6)
+)
+
+    # Traction Health Index (normalized inverse slip)
+    df['Traction_Health'] = 1 - df['Slip_Ratio'].abs()
+    df['Traction_Health'] = df['Traction_Health'].clip(0, 1)
+
     # B. Change features (delta)
     df['Speed_Change'] = df['Speed'].diff().fillna(0)
     df['Throttle_Change'] = df['Throttle'].diff().fillna(0)
@@ -53,7 +72,7 @@ def engineer_features():
         0.15 * (df['Brake_Usage'] / (df['Brake_Usage'].max() + 1))
     )
     print("   ✓ Stress score with mileage (1)")
-    
+    # PART B — Add (1) Acceleration Efficiency
     # Create target variable (maintenance needed based on stress + mileage)
     print("\n3. Creating target variable...")
     

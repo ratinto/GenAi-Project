@@ -149,7 +149,7 @@ def render_boot_sequence():
     if 'boot_complete' not in st.session_state:
         import base64
         car_b64 = ""
-        car_path = os.path.join(os.getcwd(), 'f1_car_clean.png')
+        car_path = os.path.join(os.getcwd(), 'f1_car.png')
         if os.path.exists(car_path):
             with open(car_path, "rb") as image_file:
                 car_b64 = base64.b64encode(image_file.read()).decode()
@@ -403,12 +403,19 @@ def main():
 
             # 2. RACE ENVIRONMENT
             st.markdown("<div class='module-card'><div class='module-title'>RACE ENVIRONMENT</div>", unsafe_allow_html=True)
-            st.markdown("""
+            # Dynamic environmental values based on speed and RPM
+            air_temp = 20 + (t_spd / 380) * 15  # 20-35°C
+            humidity = 15 - (t_rpm / 18000) * 8  # 15-7%
+            wind_speed = 5 + (t_thr / 100) * 10  # 5-15 km/h
+            track_temp = 35 + (t_rpm / 18000) * 20  # 35-55°C
+            track_color = "#ff2800" if track_temp > 45 else "#ffae00" if track_temp > 40 else "#00ffcc"
+            
+            st.markdown(f"""
             <div class="telemetry-grid">
-                <div class="tel-metric"><span class="tel-label">AIR TEMP</span><span class="tel-val">24.2°C</span></div>
-                <div class="tel-metric" style="text-align:right;"><span class="tel-label">HUMIDITY</span><span class="tel-val">12%</span></div>
-                <div class="tel-metric"><span class="tel-label">WIND SPD</span><span class="tel-val">8.4 km/h</span></div>
-                <div class="tel-metric" style="text-align:right;"><span class="tel-label">TRACK TEMP</span><span class="tel-val" style="color:#ff2800;">41.5°C</span></div>
+                <div class="tel-metric"><span class="tel-label">AIR TEMP</span><span class="tel-val">{air_temp:.1f}°C</span></div>
+                <div class="tel-metric" style="text-align:right;"><span class="tel-label">HUMIDITY</span><span class="tel-val">{humidity:.0f}%</span></div>
+                <div class="tel-metric"><span class="tel-label">WIND SPD</span><span class="tel-val">{wind_speed:.1f} km/h</span></div>
+                <div class="tel-metric" style="text-align:right;"><span class="tel-label">TRACK TEMP</span><span class="tel-val" style="color:{track_color};">{track_temp:.1f}°C</span></div>
             </div>
             """, unsafe_allow_html=True)
             # Track SVG
@@ -437,7 +444,7 @@ def main():
 
             # Asset Loading
             car_b64 = ""
-            abs_car_path = os.path.join(os.getcwd(), 'f1_car_clean.png')
+            abs_car_path = os.path.join(os.getcwd(), 'f1_car-r.png')
             if os.path.exists(abs_car_path):
                 with open(abs_car_path, "rb") as f: car_b64 = base64.b64encode(f.read()).decode()
 
@@ -461,8 +468,12 @@ def main():
                 st.plotly_chart(render_wave_graph(np.random.normal(0.5, 0.05, 50), "#ff2800"), use_container_width=True)
                 st.markdown("<div class='tel-label' style='text-align:center; font-size:0.5rem;'>TRACTION VECTORS</div>", unsafe_allow_html=True)
             with g_right:
+                # Dynamic radar values
+                brake_efficiency = 0.9 if t_brk else 0.3
+                heat_index = min(1.0, (t_rpm/18000 * 0.6 + tire_stress * 0.4))
+                
                 fig_radar = go.Figure(go.Scatterpolar(
-                    r=[t_spd/380, t_thr/100, traction, 0.85, 0.6],
+                    r=[t_spd/380, t_thr/100, traction, brake_efficiency, heat_index],
                     theta=['V','T','G','B','H'], fill='toself', line=dict(color='#ff2800', width=1)
                 ))
                 fig_radar.update_layout(
@@ -477,15 +488,19 @@ def main():
             m_col1, m_col2, m_col3 = st.columns(3)
             with m_col1:
                 st.markdown("<div class='tel-label'>RPM POWER BAND</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='tel-val'>{t_rpm} <span style='font-size:0.6rem; color:#888;'>REV/MIN</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='tel-val' key='rpm-display-{t_rpm}'>{t_rpm} <span style='font-size:0.6rem; color:#888;'>REV/MIN</span></div>", unsafe_allow_html=True)
                 st.markdown(render_segmented_bar(t_rpm/18000), unsafe_allow_html=True)
             with m_col2:
+                # Dynamic ERS based on speed and throttle
+                ers_energy = 100 - (t_thr/100 * 40) + (t_spd/380 * 30)  # Depletes with throttle, recovers with speed
+                ers_energy = min(100, max(0, ers_energy))  # Clamp between 0-100
+                ers_pct = ers_energy / 100
                 st.markdown("<div class='tel-label'>ERS ENERGY</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='tel-val'>84.2 <span style='font-size:0.6rem; color:#888;'>KW/H</span></div>", unsafe_allow_html=True)
-                st.markdown(render_segmented_bar(0.84, color="#00ffcc"), unsafe_allow_html=True)
+                st.markdown(f"<div class='tel-val' key='ers-display-{ers_energy:.1f}'>{ers_energy:.1f} <span style='font-size:0.6rem; color:#888;'>KW/H</span></div>", unsafe_allow_html=True)
+                st.markdown(render_segmented_bar(ers_pct, color="#00ffcc"), unsafe_allow_html=True)
             with m_col3:
                 st.markdown("<div class='tel-label'>TRACTION INDEX</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='tel-val'>{traction*100:.1f} <span style='font-size:0.6rem; color:#888;'>% GRIP</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='tel-val' key='traction-display-{traction:.3f}'>{traction*100:.1f} <span style='font-size:0.6rem; color:#888;'>% GRIP</span></div>", unsafe_allow_html=True)
                 st.markdown(render_segmented_bar(traction), unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -510,11 +525,15 @@ def main():
 
             # 5. LOAD ANALYSIS
             st.markdown("<div class='module-card'><div class='module-title'>CHASSIS G-LOAD ANALYSIS</div>", unsafe_allow_html=True)
-            st.plotly_chart(render_wave_graph(np.random.normal(0.4, 0.05, 50), "#ffffff"), use_container_width=True)
-            st.markdown("""
+            # Dynamic G-forces based on speed, throttle and braking
+            longitudinal_g = (t_thr/100 * 3.5) if not t_brk else -(t_spd/380 * 5.0)  # Accel or decel
+            lateral_g = (t_spd/380) * (t_gear/8) * 2.5  # Based on speed and cornering (gear as proxy)
+            
+            st.plotly_chart(render_wave_graph(np.random.normal(abs(longitudinal_g)/6, 0.05, 50), "#ffffff"), use_container_width=True)
+            st.markdown(f"""
             <div class="telemetry-grid">
-                <div class="tel-metric"><span class="tel-label">LONGITUDINAL</span><span class="tel-val">4.21 G</span></div>
-                <div class="tel-metric" style="text-align:right;"><span class="tel-label">LATERAL</span><span class="tel-val">1.08 G</span></div>
+                <div class="tel-metric"><span class="tel-label">LONGITUDINAL</span><span class="tel-val">{abs(longitudinal_g):.2f} G</span></div>
+                <div class="tel-metric" style="text-align:right;"><span class="tel-label">LATERAL</span><span class="tel-val">{lateral_g:.2f} G</span></div>
             </div>
             """, unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)

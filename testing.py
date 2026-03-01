@@ -9,25 +9,88 @@ import pickle
 import numpy as np
 
 def calculate_traction_health(speed, rpm):
-    """Calculate traction health from speed and RPM."""
+    """Calculate traction health from speed and RPM using fixed tire radius."""
+    # F1 tire radius ~0.33m
+    r_eff = 0.33  # Fixed tire radius in meters
+    
     # Convert speed from km/h to m/s
     speed_mps = speed * (1000/3600)
     
-    # Estimate wheel angular velocity
-    wheel_omega = (rpm / 60) * (2 * np.pi)
+    # Estimate wheel RPM (typical F1 gearing: engine RPM / 8 for wheel RPM)
+    wheel_rpm = rpm / 8
     
-    # Effective rolling radius
-    r_eff = speed_mps / (wheel_omega + 1e-6)
+    # Calculate wheel angular velocity (rad/s)
+    wheel_omega = (wheel_rpm / 60) * (2 * np.pi)
     
-    # Slip ratio
-    slip_ratio = ((wheel_omega * r_eff - speed_mps) / (speed_mps + 1e-6))
+    # Expected speed from wheel rotation
+    expected_speed = wheel_omega * r_eff
     
-    # Traction health (normalized inverse slip)
-    # IMPROVEMENT: Clamp to 0.95 max (real systems never perfect)
-    traction_health = 1 - abs(slip_ratio)
-    traction_health = max(0, min(0.95, traction_health))  # Max 0.95, not 1.00
+    # Slip ratio calculation
+    if expected_speed > 0:
+        slip_ratio = abs((expected_speed - speed_mps) / expected_speed)
+    else:
+        slip_ratio = 0
+    
+    # Traction health (inverse of slip, normalized)
+    # Good traction = low slip (close to 1.0)
+    # Poor traction = high slip (close to 0.0)
+    traction_health = max(0.3, min(1.0, 1.0 - slip_ratio))
     
     return traction_health
+
+def calculate_physics_features(data):
+    """Calculate physics-based features for a single test case."""
+    rpm = data['RPM']
+    speed = data['Speed']
+    gear = data['nGear']
+    throttle = data['Throttle']
+    brake = data['Brake']
+    
+    # 1. Gear Ratio (approximation)
+    data['Gear_Ratio'] = rpm / (speed + 1) if speed > 0 else 0
+    
+    # 2. Expected RPM based on gear and speed
+    # F1 typical: gear 1-8, speed range 0-350 km/h
+    if gear > 0:
+        data['Expected_RPM'] = speed * gear * 30  # Rough approximation
+    else:
+        data['Expected_RPM'] = 0
+    
+    # 3. RPM Deviation
+    data['RPM_Deviation'] = abs(rpm - data['Expected_RPM'])
+    
+    # 4. RPM Deviation Ratio
+    if data['Expected_RPM'] > 0:
+        data['RPM_Deviation_Ratio'] = data['RPM_Deviation'] / data['Expected_RPM']
+    else:
+        data['RPM_Deviation_Ratio'] = 0
+    
+    # 5. Gear-Speed Mismatch (categorical flag)
+    # Flag impossible combinations
+    if (speed > 200 and gear <= 4) or (speed < 50 and gear > 5):
+        data['Gear_Speed_Mismatch'] = 1
+    else:
+        data['Gear_Speed_Mismatch'] = 0
+    
+    # 6. RPM per Gear
+    data['RPM_per_Gear'] = rpm / (gear + 1)
+    
+    # 7. Speed per Gear
+    data['Speed_per_Gear'] = speed / (gear + 1)
+    
+    # 8. RPM-Speed Ratio
+    data['RPM_Speed_Ratio'] = rpm / (speed + 1)
+    
+    # 9. Throttle-RPM Product (stress indicator)
+    data['Throttle_RPM_Product'] = (throttle / 100) * (rpm / 13000)
+    
+    # 10. Throttle-Brake Conflict
+    if throttle > 50 and brake > 50:
+        data['Throttle_Brake_Conflict'] = 1
+    else:
+        data['Throttle_Brake_Conflict'] = 0
+    
+    return data
 
 def test_models():
     """Test the trained models."""
@@ -100,7 +163,10 @@ def test_models():
         # Calculate traction health
         test['Traction_Health'] = calculate_traction_health(test['Speed'], test['RPM'])
         
-        # Create dataframe
+        # Calculate physics-based features
+        test = calculate_physics_features(test)
+        
+        # Create dataframe with all features
         test_df = pd.DataFrame([test])[features]
         
         # Scale

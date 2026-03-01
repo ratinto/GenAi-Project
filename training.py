@@ -24,13 +24,12 @@ def train_models():
     df = pd.read_csv('data_with_features.csv')
     print(f"   Loaded: {df.shape}")
     
-    # Select features (UPDATED: Now includes 26 physics-based features)
+    # Select features (UPDATED: Now includes 25 physics-based features with Traction, no Mileage)
     print("\n2. Selecting features...")
     features = [
         # Raw inputs (5)
         'RPM', 'Speed', 'nGear', 'Throttle', 'Brake',
-        'Mileage', 'Mileage_Normalized',
-        # Traction (1)
+        # Traction (1) - CRITICAL FEATURE
         'Traction_Health',
         # Change features (2)
         'Speed_Change', 'Throttle_Change', 
@@ -38,7 +37,7 @@ def train_models():
         'Hard_Braking', 'High_RPM', 'Full_Throttle',
         # Safety features (2)
         'RPM_Danger', 'Inconsistent_Combo',
-        # Physics-based features (10) - NEW!
+        # Physics-based features (10) - Gear-Speed-RPM mechanics
         'Gear_Ratio', 'Expected_RPM', 'RPM_Deviation', 'RPM_Deviation_Ratio',
         'Gear_Speed_Mismatch', 'RPM_per_Gear', 'Speed_per_Gear', 
         'RPM_Speed_Ratio', 'Throttle_RPM_Product', 'Throttle_Brake_Conflict',

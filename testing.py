@@ -250,6 +250,9 @@ def test_models():
             'Stress_Score': stress
         }
         
+        # Calculate physics features
+        user_test = calculate_physics_features(user_test)
+        
         test_df = pd.DataFrame([user_test])[features]
         test_scaled = scaler.transform(test_df)
         

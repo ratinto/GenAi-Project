@@ -18,16 +18,8 @@ def engineer_features():
     print("\n1. Loading cleaned data...")
     df = pd.read_csv('cleaned_data.csv')
     print(f"   Loaded: {df.shape}")
-    
-    # Mileage features
-    if 'Distance' in df.columns:
-        df['Mileage'] = df['Distance'] / 1000
-        df['Mileage_Normalized'] = (df['Mileage'] - df['Mileage'].min()) / (df['Mileage'].max() - df['Mileage'].min() + 1e-6)
-    else:
-        df['Mileage'] = 4200.0
-        df['Mileage_Normalized'] = 0.8
 
-    #A.Traction Health
+    # A. Traction Health
     # Convert speed from km/h to m/s
     df['Speed_mps'] = df['Speed'] * (1000/3600)
 

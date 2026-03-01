@@ -303,12 +303,14 @@ def validate_physics(rpm, speed, gear, throttle, brake):
 
 def process_batch_features(df):
     df = df.copy()
-    if 'Distance' in df.columns:
-        df['Mileage'] = df['Distance'] / 1000
-        df['Mileage_Normalized'] = (df['Mileage'] - df['Mileage'].min()) / (df['Mileage'].max() - df['Mileage'].min() + 1e-6)
-    else:
-        df['Mileage'] = 4200.0
-        df['Mileage_Normalized'] = 0.8
+    
+    # SILENT SHADOW FEATURES (Required by AI Model Vector)
+    df['Mileage'] = 0.0
+    df['Mileage_Normalized'] = 0.0
+    df['High_Speed_Miles'] = 0.0
+    if 'Distance' not in df.columns: df['Distance'] = 0.0
+    
+    # ACTIVE TELEMETRY FEATURES
     df['Traction_Health'] = df.apply(lambda row: calculate_traction_health(row['Speed'], row['RPM']), axis=1)
     df['Speed_Change'] = df['Speed'].diff().fillna(0)
     df['Throttle_Change'] = df['Throttle'].diff().fillna(0)
@@ -330,8 +332,9 @@ def process_batch_features(df):
     df['Throttle_Brake_Conflict'] = ((df['Throttle'] > 20) & (df['Brake'] == 1)).astype(int)
     df['RPM_Hours'] = (df['RPM'] / 60000).cumsum()
     df['Brake_Usage'] = df['Brake'].cumsum()
-    df['High_Speed_Miles'] = ((df['Speed'] > 200) * df['Distance'].diff().fillna(0)).cumsum()
-    rpm_norm = df['RPM'] / df['RPM'].max()
+    
+    # Stress Scoring
+    rpm_norm = df['RPM'] / (df['RPM'].max() + 1e-6)
     throttle_norm = df['Throttle'] / 100
     brake_norm = df['Brake']
     brake_usage_norm = df['Brake_Usage'] / (df['Brake_Usage'].max() + 1)
@@ -341,6 +344,7 @@ def process_batch_features(df):
     mismatch_penalty = df['Gear_Speed_Mismatch'] * 0.35
     conflict_penalty = df['Throttle_Brake_Conflict'] * 0.20
     df['Stress_Score'] = (base_stress + rpm_penalty + inconsistent_penalty + mismatch_penalty + conflict_penalty).clip(0, 1)
+    
     return df
 
 # --- MAIN DASHBOARD INTERFACE ---
@@ -370,9 +374,21 @@ def main():
     </div>
     """, unsafe_allow_html=True)
 
-    tabs = st.tabs(["[ LIVE ANALYSIS ]", "[ BATCH INTELLIGENCE ]", "[ SYSTEM DIAGNOSTICS ]"])
+    # PERSISTENT NAVIGATION
+    if 'active_tab' not in st.session_state:
+        st.session_state.active_tab = "[ LIVE ANALYSIS ]"
 
-    with tabs[0]:
+    col_nav1, col_nav2 = st.columns([2, 1])
+    with col_nav1:
+        st.session_state.active_tab = st.radio(
+            "MISSION NAVIGATION",
+            ["[ LIVE ANALYSIS ]", "[ BATCH INTELLIGENCE ]", "[ SYSTEM DIAGNOSTICS ]"],
+            index=["[ LIVE ANALYSIS ]", "[ BATCH INTELLIGENCE ]", "[ SYSTEM DIAGNOSTICS ]"].index(st.session_state.active_tab),
+            horizontal=True,
+            label_visibility="collapsed"
+        )
+
+    if st.session_state.active_tab == "[ LIVE ANALYSIS ]":
         col_L, col_M, col_R = st.columns([1, 1.8, 1], gap="medium")
 
         with col_L:
@@ -383,7 +399,6 @@ def main():
             t_thr = st.slider("THROTTLE %", 0, 100, 100)
             t_brk = st.toggle("BRAKE ACTIVATION")
             t_gear = st.select_slider("GEAR SELECT", options=[1,2,3,4,5,6,7,8], value=6)
-            t_mil = st.number_input("TOTAL MILEAGE (KM)", 0, 10000, 4200)
             st.markdown("</div>", unsafe_allow_html=True)
 
             # 2. RACE ENVIRONMENT
@@ -515,18 +530,62 @@ def main():
                 st.markdown("<div style='color:#00ffcc; font-size:0.65rem; font-family:\"JetBrains Mono\";'>SYSTEM_CLEAN: ALL MECHANICAL CONSTRAINTS SATISFIED</div>", unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
 
-    with tabs[1]:
-        st.markdown("<div class='module-card'><div class='module-title'>REMOTE BATCH PIPELINE</div>", unsafe_allow_html=True)
-        f_up = st.file_uploader("SYNC HISTORICAL TELEMETRY (CSV)", type=['csv'])
+    elif st.session_state.active_tab == "[ BATCH INTELLIGENCE ]":
+        st.markdown("<div class='module-card'><div class='module-title'>REMOTE BATCH INTELLIGENCE PIPELINE</div>", unsafe_allow_html=True)
+        
+        # PERSISTENT STORAGE FOR BATCH RESULTS
+        if 'batch_intel' not in st.session_state:
+            st.session_state.batch_intel = None
+            
+        f_up = st.file_uploader("SYNC HISTORICAL TELEMETRY (CSV)", type=['csv'], key="batch_mode_uploader")
+        
         if f_up:
             data = pd.read_csv(f_up)
-            if st.button("INITIATE NEURAL BATCH"):
-                processed = process_batch_features(data)
-                # Apply model prediction here...
-                st.dataframe(processed.head(10), use_container_width=True)
+            
+            # TRIGGER ANALYSIS
+            if st.button("EXECUTE NEURAL CORRELATION MAPPING"):
+                with st.spinner("QUANTIZING TELEMETRY VECTORS..."):
+                    # Process and calculate AI scores
+                    processed = process_batch_features(data)
+                    X_batch = scaler.transform(processed[features_list])
+                    processed['AI_Risk_Score'] = lr_model.predict_proba(X_batch)[:, 1]
+                    
+                    # Store in session state to anchor results in this tab
+                    st.session_state.batch_intel = processed
+
+            # RENDER ONLY CORRELATION MATRIX
+            if st.session_state.batch_intel is not None:
+                df_res = st.session_state.batch_intel
+                
+                st.markdown("<div style='margin-top:20px;' class='tel-label'>TELEMETRY CORRELATION MATRIX (MISSION KERNEL)</div>", unsafe_allow_html=True)
+                
+                # Filter for core telemetry features
+                corr_cols = ['RPM', 'Speed', 'Throttle', 'Stress_Score', 'AI_Risk_Score']
+                corr = df_res[corr_cols].corr()
+                
+                fig_corr = px.imshow(
+                    corr, 
+                    text_auto=".2f", 
+                    color_continuous_scale="Reds", 
+                    aspect="auto", 
+                    template="plotly_dark"
+                )
+                fig_corr.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', 
+                    plot_bgcolor='rgba(0,0,0,0)', 
+                    height=500,
+                    margin=dict(l=20,r=20,t=40,b=20)
+                )
+                st.plotly_chart(fig_corr, use_container_width=True)
+
+                # Export Option
+                st.download_button("EXPORT INTELLIGENCE REPORT", 
+                                 data=df_res.to_csv().encode('utf-8'), 
+                                 file_name="hiraeth_intel_batch.csv",
+                                 mime="text/csv")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    with tabs[2]:
+    elif st.session_state.active_tab == "[ SYSTEM DIAGNOSTICS ]":
         st.markdown("<div class='module-card'><div class='module-title'>SYSTEM DIAGNOSTICS & KERNELS</div>", unsafe_allow_html=True)
         st.code(f"""
 [STREAMS] Initializing Real-time Hiraeth Engine... [OK]

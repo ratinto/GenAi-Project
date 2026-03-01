@@ -1,0 +1,15 @@
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.streamlit/
+data_with_features.csv
+cleaned_data.csv
+data.csv
+*.pkl
+.DS_Store
+f1_car.png
+f1_car_clean.png
+f1_red_logo.png
+# Keep models if needed, but they are often large. They seem already committed if they existed.
+# I'll keep .pkl from tracking as they change frequently and are binary.

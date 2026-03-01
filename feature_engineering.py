@@ -1,17 +1,7 @@
 """
 STEP 2: FEATURE ENGINEERING
 ===========================
-Create featu    print("   ✓ Stress score (1)")
-    
-    # Create target variable (maintenance needed based on stress)
-    print("\n3. Creating target variable...")
-    
-    # High stress = needs maintenance
-    stress_threshold = df['Stress_Score'].quantile(0.70)
-    
-    df['Needs_Maintenance'] = (
-        df['Stress_Score'] >= stress_threshold
-    ).astype(int)cleaned data
+Create physics-based features from cleaned telemetry data.
 """
 
 import pandas as pd
@@ -29,11 +19,13 @@ def engineer_features():
     df = pd.read_csv('cleaned_data.csv')
     print(f"   Loaded: {df.shape}")
     
-    # Create features
-    print("\n2. Creating features...")
-    
-    print("   ✓ Standard wheel diameter")
-    df['Tyre_Radius']=720   #in milimeters
+    # Mileage features
+    if 'Distance' in df.columns:
+        df['Mileage'] = df['Distance'] / 1000
+        df['Mileage_Normalized'] = (df['Mileage'] - df['Mileage'].min()) / (df['Mileage'].max() - df['Mileage'].min() + 1e-6)
+    else:
+        df['Mileage'] = 4200.0
+        df['Mileage_Normalized'] = 0.8
 
     #A.Traction Health
     # Convert speed from km/h to m/s

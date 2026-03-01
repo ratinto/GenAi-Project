@@ -29,6 +29,7 @@ def train_models():
     features = [
         # Raw inputs (5)
         'RPM', 'Speed', 'nGear', 'Throttle', 'Brake',
+        'Mileage', 'Mileage_Normalized',
         # Traction (1)
         'Traction_Health',
         # Change features (2)

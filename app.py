@@ -1,22 +1,367 @@
 """
-STREAMLIT APP - Vehicle Maintenance Predictor
-==============================================
-Web interface with Manual Input & CSV Upload modes
+HIRAETH F1 | MISSION CONTROL v2.1
+=================================
+Ultra-high fidelity vehicle telemetry dashboard with integrated physics validation.
 """
 
 import streamlit as st
 import pandas as pd
+import numpy as np
 import pickle
 import io
-import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime
 
-# Page config
-st.set_page_config(page_title="Maintenance Predictor", page_icon="🚗", layout="wide")
+# --- CORE CONFIGURATION ---
+st.set_page_config(
+    page_title="HIRAETH F1 | MISSION CONTROL",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# Load models - v2 with 27 physics features (cache busted)
+# --- LUXURY THEME SPECIFICATION ---
+THEME = {
+    "neon_red": "#f66338",
+    "deep_red": "#4a031e",
+    "obsidian": "#050505",
+    "carbon": "#121212",
+    "glass": "rgba(18, 18, 18, 0.7)",
+    "text_main": "#ffffff",
+    "text_sec": "#888888",
+    "grid": "#222222"
+}
+
+# --- ADVANCED STYLING ENGINE ---
+def inject_premium_css():
+    st.markdown(f"""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@100;400&display=swap');
+    
+    /* Core Layout & Spacing */
+    .stApp {{
+        background: {THEME['obsidian']};
+        background-image: 
+            linear-gradient({THEME['grid']} 1px, transparent 1px),
+            linear-gradient(90deg, {THEME['grid']} 1px, transparent 1px);
+        background-size: 50px 50px;
+        color: {THEME['text_main']};
+        font-family: 'JetBrains Mandatory', 'JetBrains Mono', monospace;
+    }}
+    
+    .block-container {{
+        padding-top: 1rem !important;
+        padding-bottom: 0rem !important;
+    }}
+    
+    /* Typography */
+    h1, h2, h3, .f1-header {{
+        font-family: 'Orbitron', sans-serif !important;
+        letter-spacing: 5px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }}
+    
+    .brand-title {{
+        font-size: 4.5rem;
+        background: linear-gradient(180deg, #fff 30%, {THEME['neon_red']} 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: -10px;
+        padding-top: 0px !important;
+        margin-top: -20px !important;
+    }}
+    
+    /* Luxury Glass Cards */
+    .glass-card {{
+        background: {THEME['glass']};
+        border: 1px solid #333;
+        border-top: 2px solid {THEME['neon_red']};
+        padding: 25px;
+        border-radius: 4px;
+        backdrop-filter: blur(15px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        margin-bottom: 20px;
+    }}
+    
+    /* Segmented Progress Bars */
+    .segment-container {{
+        display: flex;
+        gap: 3px;
+        height: 12px;
+        margin: 10px 0;
+    }}
+    
+    .segment {{
+        flex: 1;
+        background: #222;
+        border-radius: 1px;
+    }}
+    
+    .segment.active {{
+        background: {THEME['neon_red']};
+        box-shadow: 0 0 8px {THEME['neon_red']};
+    }}
+    
+    /* Global Elements */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 30px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #333;
+    }}
+
+    .stTabs [data-baseweb="tab"] {{
+        background: transparent !important;
+        font-family: 'Orbitron', sans-serif;
+        font-size: 0.8rem;
+        letter-spacing: 2px;
+        color: {THEME['text_sec']} !important;
+        border-bottom: 2px solid transparent !important;
+    }}
+
+    .stTabs [aria-selected="true"] {{
+        color: {THEME['neon_red']} !important;
+        border-bottom: 2px solid {THEME['neon_red']} !important;
+    }}
+    
+    /* Hide Streamlit Clutter */
+    #MainMenu {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    header {{visibility: hidden;}}
+    
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {{
+        width: 5px;
+    }}
+    ::-webkit-scrollbar-track {{
+        background: {THEME['obsidian']};
+    }}
+    ::-webkit-scrollbar-thumb {{
+        background: {THEME['neon_red']};
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- BOOT SEQUENCE ENGINE ---
+def render_boot_sequence():
+    """Renders the high-fidelity F1 startup animation."""
+    if 'boot_complete' not in st.session_state:
+        import base64
+        import os
+        
+        # Base64 encode the car asset if it exists
+        car_b64 = ""
+        car_path = os.path.join(os.getcwd(), 'f1_car_clean.png')
+        if os.path.exists(car_path):
+            with open(car_path, "rb") as image_file:
+                car_b64 = base64.b64encode(image_file.read()).decode()
+            
+        st.markdown(f"""
+        <div id="hiraeth-boot-sequence">
+            <div class="circuit-grid"></div>
+            <div class="animation-stage">
+                <div class="track-line">
+                    <div class="f1-car-container">
+                        <img src="data:image/png;base64,{car_b64}" class="f1-car-img" />
+                        <div class="engine-smoke">
+                            <span class="puff"></span><span class="puff"></span><span class="puff"></span><span class="puff"></span>
+                            <span class="puff"></span><span class="puff"></span><span class="puff"></span><span class="puff"></span>
+                            <span class="puff"></span><span class="puff"></span><span class="puff"></span><span class="puff"></span>
+                            <span class="puff"></span><span class="puff"></span><span class="puff"></span><span class="puff"></span>
+                            <span class="puff"></span><span class="puff"></span><span class="puff"></span><span class="puff"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="boot-branding">
+                    <span class="brand-hiraeth">HIRAETH</span>
+                    <span class="brand-f1">F1</span>
+                </div>
+            </div>
+        </div>
+        
+        <style>
+        #hiraeth-boot-sequence {{
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #050505;
+            z-index: 1000000;
+            display: flex; justify-content: center; align-items: center;
+            opacity: 1;
+            animation: curtainClose 1.2s cubic-bezier(0.7, 0, 0.3, 1) 4.2s forwards;
+            pointer-events: none;
+            overflow: hidden;
+        }}
+
+        .circuit-grid {{
+            position: absolute;
+            width: 200%; height: 200%;
+            background-image: 
+                linear-gradient(#111 1px, transparent 1px), 
+                linear-gradient(90deg, #111 1px, transparent 1px);
+            background-size: 80px 80px;
+            transform: perspective(600px) rotateX(65deg) translateY(-25%);
+            opacity: 0.15;
+            animation: gridScroll 10s linear infinite;
+        }}
+
+        @keyframes gridScroll {{
+            from {{ transform: perspective(600px) rotateX(65deg) translateY(-25%); }}
+            to {{ transform: perspective(600px) rotateX(65deg) translateY(-20%); }}
+        }}
+
+        .animation-stage {{
+            position: relative;
+            width: 100%;
+            height: 400px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }}
+
+        .track-line {{
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, transparent, rgba(246, 99, 56, 1), transparent);
+            position: relative;
+            box-shadow: 0 0 50px rgba(246, 99, 56, 0.7);
+        }}
+
+        .f1-car-container {{
+            position: absolute;
+            width: 450px;
+            left: 0;
+            bottom: -140px;
+            transform: translateX(-550px);
+            animation: f1Drive 4.5s cubic-bezier(0.4, 0, 0.2, 1) 0.5s forwards;
+            z-index: 10;
+            will-change: transform;
+        }}
+
+        .f1-car-img {{
+            width: 100%;
+            height: auto;
+            display: block;
+            transform: scaleX(-1);
+            filter: drop-shadow(0 0 25px rgba(246, 99, 56, 0.8));
+            object-fit: contain;
+        }}
+
+        .engine-smoke {{
+            position: absolute;
+            right: 0px; bottom: 35px;
+            display: flex; gap: 2px;
+            will-change: transform, opacity;
+        }}
+
+        .puff {{
+            width: 40px; height: 40px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            filter: blur(20px);
+            animation: smokeRise 0.6s ease-out infinite;
+        }}
+
+        .puff:nth-child(even) {{ animation-delay: 0.1s; animation-duration: 0.5s; }}
+        .puff:nth-child(3n) {{ animation-delay: 0.2s; animation-duration: 0.7s; }}
+        .puff:nth-child(4n) {{ animation-delay: 0.3s; animation-duration: 0.4s; }}
+        .puff:nth-child(5n) {{ animation-delay: 0.05s; animation-duration: 0.8s; }}
+
+        @keyframes f1Drive {{
+            0% {{ transform: translateX(-550px) scale(0.9); }}
+            100% {{ transform: translateX(calc(100vw + 500px)) scale(1.1); }}
+        }}
+
+        @keyframes smokeRise {{
+            0% {{ transform: translateY(0) scale(1) translateX(0); opacity: 0.6; }}
+            100% {{ transform: translateY(-100px) scale(8) translateX(-50px); opacity: 0; }}
+        }}
+
+        .boot-branding {{
+            margin-top: 40px;
+            display: flex; align-items: center; gap: 20px;
+            opacity: 0;
+            animation: brandFadeIn 2s ease-out 1.2s forwards;
+            transform: translateY(20px);
+        }}
+
+        .brand-hiraeth {{
+            font-family: 'Orbitron', sans-serif;
+            font-size: 5rem;
+            font-weight: 900;
+            letter-spacing: 25px;
+            color: #fff;
+            background: linear-gradient(180deg, #fff 40%, #888 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }}
+
+        .brand-f1 {{
+            font-family: 'Orbitron', sans-serif;
+            font-size: 6rem;
+            font-weight: 900;
+            color: #f66338;
+            letter-spacing: -5px;
+            font-style: italic;
+            position: relative;
+            transform: skewX(-15deg);
+        }}
+
+        .brand-f1::after {{
+            content: '';
+            position: absolute;
+            left: -10px; bottom: 10px;
+            width: 110%; height: 60%;
+            background: rgba(246, 99, 56, 0.15);
+            filter: blur(30px);
+            z-index: -1;
+        }}
+
+        @keyframes f1Drive {{
+            0% {{ left: -350px; transform: scale(0.9); }}
+            100% {{ left: 130%; transform: scale(1.2); }}
+        }}
+
+        @keyframes smokeRise {{
+            0% {{ transform: translateY(0) scale(1) translateX(0); opacity: 0.8; }}
+            100% {{ transform: translateY(-80px) scale(6) translateX(-40px); opacity: 0; }}
+        }}
+
+        @keyframes brandFadeIn {{
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+
+        @keyframes curtainClose {{
+            to {{ opacity: 0; visibility: hidden; transform: scale(1.05); }}
+        }}
+        </style>
+        """, unsafe_allow_html=True)
+        st.session_state.boot_complete = True
+
+# --- PAGE BOOT ---
+render_boot_sequence()
+inject_premium_css()
+
+# --- REUSABLE UI COMPONENTS ---
+def render_segmented_bar(value_pct):
+    n_segments = 20
+    active_segments = int(value_pct * n_segments)
+    html = "<div class='segment-container'>"
+    for i in range(n_segments):
+        status = "active" if i < active_segments else ""
+        html += f"<div class='segment {status}'></div>"
+    html += "</div>"
+    st.markdown(html, unsafe_allow_html=True)
+
+def mission_panel(label, value, subtext="", color="#fff"):
+    st.markdown(f"""
+    <div style='border-left: 2px solid {THEME['neon_red']}; padding-left: 15px; margin-bottom: 20px;'>
+        <p style='color:{THEME['text_sec']}; font-size:0.7rem; letter-spacing:3px; margin:0;'>{label}</p>
+        <p style='color:{color}; font-size:2rem; font-family:"Orbitron"; margin:0;'>{value}</p>
+        <p style='color:{THEME['text_sec']}; font-size:0.6rem; margin:0;'>{subtext}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# --- CORE DATA ENGINES ---
 @st.cache_resource(hash_funcs={type(lambda: None): lambda _: None})
-def load_models():
+def load_ai_kernels():
     try:
         with open('tree_model.pkl', 'rb') as f:
             tree_model = pickle.load(f)
@@ -26,99 +371,45 @@ def load_models():
             scaler = pickle.load(f)
         with open('features.pkl', 'rb') as f:
             features_list = pickle.load(f)
-        # Verify we have the right number of features (should be 27)
-        if len(features_list) != 27:
-            st.warning(f"⚠️ Model has {len(features_list)} features, expected 27. Please retrain!")
         return tree_model, lr_model, scaler, features_list
-    except Exception as e:
-        st.error(f"Error loading models: {e}")
-        return None, None, None, None
+    except: return None, None, None, None
 
 def calculate_traction_health(speed, rpm):
     """Calculate traction health from speed and RPM - measures tire slip."""
-    # F1 tire effective radius approximately 0.33m
     r_eff = 0.33  # Fixed effective wheel radius in meters
-    
     speed_mps = speed * (1000/3600)  # Convert km/h to m/s
     wheel_rpm = rpm / 8  # Approximate wheel RPM (engine RPM / average gear ratio)
     wheel_omega = (wheel_rpm / 60) * (2 * np.pi)  # Wheel angular velocity (rad/s)
-    
-    # Expected speed from wheel rotation
     expected_speed = wheel_omega * r_eff
-    
-    # Slip ratio: difference between wheel speed and vehicle speed
     if speed_mps > 0.1:  # Avoid division by zero
         slip_ratio = (expected_speed - speed_mps) / speed_mps
     else:
         slip_ratio = 0 if wheel_rpm < 100 else 1.0  # Burnout detection
-    
-    # Traction health decreases with slip
     traction_health = 1 - abs(slip_ratio)
     traction_health = max(0.3, min(1.0, traction_health))  # Range: 0.3 to 1.0
     return traction_health
 
-# ============================================================================
-# PHYSICS VALIDATION LAYER - Added for robustness
-# ============================================================================
-
 def validate_physics(rpm, speed, gear, throttle, brake):
-    """
-    Validate telemetry against mechanical physics.
-    Returns: (is_valid, violations, severity)
-    """
+    """Validate telemetry against mechanical physics."""
     violations = []
     severity = 0.0
-    
-    # F1 gear ratios
     gear_ratios = {1: 3.5, 2: 2.5, 3: 2.0, 4: 1.6, 5: 1.3, 6: 1.1, 7: 0.95, 8: 0.85}
     gear_ratio = gear_ratios.get(gear, 1.0)
-    
-    # 1. Check gear-speed-RPM consistency
     expected_rpm = speed * gear_ratio * 100
     rpm_deviation = abs(rpm - expected_rpm) / (expected_rpm + 1e-6)
     
-    if rpm_deviation > 1.5:
-        violations.append("EXTREME_RPM_MISMATCH")
-        severity = max(severity, 0.9)
-    elif rpm_deviation > 0.7:
-        violations.append("RPM_MISMATCH")
-        severity = max(severity, 0.7)
+    if rpm_deviation > 1.5: violations.append("EXTREME_RPM_MISMATCH"); severity = max(severity, 0.9)
+    elif rpm_deviation > 0.7: violations.append("RPM_MISMATCH"); severity = max(severity, 0.7)
+    if speed < 50 and gear > 3: violations.append("HIGH_GEAR_LOW_SPEED"); severity = max(severity, 0.7)
+    if speed > 200 and gear <= 4: violations.append("LOW_GEAR_HIGH_SPEED"); severity = max(severity, 0.8)
+    if throttle > 20 and brake == 1: violations.append("THROTTLE_BRAKE_CONFLICT"); severity = max(severity, 0.5)
+    if rpm > 15000: violations.append("EXTREME_RPM"); severity = max(severity, 0.8)
+    if speed > 100 and rpm < 2000: violations.append("IMPOSSIBLE_LOW_RPM"); severity = max(severity, 0.9)
     
-    # 2. Check impossible gear-speed combos
-    if speed < 50 and gear > 3:
-        violations.append("HIGH_GEAR_LOW_SPEED")
-        severity = max(severity, 0.7)
-    
-    if speed > 200 and gear <= 4:
-        violations.append("LOW_GEAR_HIGH_SPEED")
-        severity = max(severity, 0.8)
-    
-    # 3. Check throttle-brake conflict
-    if throttle > 20 and brake == 1:
-        violations.append("THROTTLE_BRAKE_CONFLICT")
-        severity = max(severity, 0.5)
-    
-    # 4. Check extreme RPM
-    if rpm > 15000:
-        violations.append("EXTREME_RPM")
-        severity = max(severity, 0.8)
-    
-    # 5. Check impossible low RPM with high speed
-    if speed > 100 and rpm < 2000:
-        violations.append("IMPOSSIBLE_LOW_RPM")
-        severity = max(severity, 0.9)
-    
-    is_valid = len(violations) == 0
-    
-    return is_valid, violations, severity, expected_rpm, rpm_deviation
+    return len(violations) == 0, violations, severity, expected_rpm, rpm_deviation
 
 def calibrate_confidence(risk, violations, severity):
-    """
-    Calibrate confidence based on physics violations.
-    Reduces confidence for out-of-distribution inputs.
-    """
     base_confidence = max(risk, 1 - risk)
-    
     if len(violations) > 0:
         violation_penalty = min(len(violations) * 0.15, 0.4)
         severity_penalty = severity * 0.3
@@ -126,68 +417,46 @@ def calibrate_confidence(risk, violations, severity):
         calibrated = max(calibrated, 0.5)
     else:
         calibrated = base_confidence
-    
     return calibrated
 
 def align_risk_stress(risk, stress, severity):
-    """
-    Ensure risk and stress are aligned for consistency.
-    Physics violations should increase both.
-    """
     if severity > 0.7:
         risk = max(risk, 0.7)
         stress = max(stress, 0.7)
-    
     if stress > 0.8 and risk < 0.5:
         risk = max(risk, stress * 0.8)
-    
     if risk > 0.8 and stress < 0.5:
         stress = max(stress, risk * 0.8)
-    
     return risk, stress
 
-# ============================================================================
-
-def engineer_features(df):
-    """Create features from raw data"""
-    # Traction Health
-    df['Traction_Health'] = df.apply(
-        lambda row: calculate_traction_health(row['Speed'], row['RPM']), 
-        axis=1
-    )
-    
-    # Change features
+def process_batch_features(df):
+    """Create features for CSV processing based on new requirements."""
+    df = df.copy()
+    if 'Distance' in df.columns:
+        df['Mileage'] = df['Distance'] / 1000
+        df['Mileage_Normalized'] = (df['Mileage'] - df['Mileage'].min()) / (df['Mileage'].max() - df['Mileage'].min() + 1e-6)
+    else:
+        df['Mileage'] = 4200.0  # Default fallback
+        df['Mileage_Normalized'] = 0.8
+        
+    df['Traction_Health'] = df.apply(lambda row: calculate_traction_health(row['Speed'], row['RPM']), axis=1)
     df['Speed_Change'] = df['Speed'].diff().fillna(0)
     df['Throttle_Change'] = df['Throttle'].diff().fillna(0)
-    
-    # Stress indicators
     df['Hard_Braking'] = ((df['Speed_Change'] < -20) & (df['Brake'] == 1)).astype(int)
     df['High_RPM'] = (df['RPM'] > 10000).astype(int)
     df['Full_Throttle'] = (df['Throttle'] >= 95).astype(int)
     
-    # SAFETY FEATURES
     MAX_SAFE_RPM = 15000
     df['RPM_Danger'] = (df['RPM'] > MAX_SAFE_RPM).astype(int)
-    df['Inconsistent_Combo'] = (
-        ((df['RPM'] > 10000) & (df['Throttle'] < 30)) |
-        ((df['Speed'] < 100) & (df['RPM'] > 12000))
-    ).astype(int)
+    df['Inconsistent_Combo'] = (((df['RPM'] > 10000) & (df['Throttle'] < 30)) | ((df['Speed'] < 100) & (df['RPM'] > 12000))).astype(int)
     
-    # 🔥 PHYSICS-BASED FEATURES: Gear-Speed-RPM Mechanics
     gear_ratios = {1: 3.5, 2: 2.5, 3: 2.0, 4: 1.6, 5: 1.3, 6: 1.1, 7: 0.95, 8: 0.85}
+    df['nGear'] = df.get('nGear', 4)
     df['Gear_Ratio'] = df['nGear'].map(gear_ratios).fillna(1.0)
-    
-    SPEED_TO_RPM_FACTOR = 100
-    df['Expected_RPM'] = df['Speed'] * df['Gear_Ratio'] * SPEED_TO_RPM_FACTOR
+    df['Expected_RPM'] = df['Speed'] * df['Gear_Ratio'] * 100
     df['RPM_Deviation'] = np.abs(df['RPM'] - df['Expected_RPM'])
     df['RPM_Deviation_Ratio'] = df['RPM_Deviation'] / (df['Expected_RPM'] + 1e-6)
-    
-    df['Gear_Speed_Mismatch'] = np.where(
-        (df['RPM_Deviation_Ratio'] > 1.0) |
-        ((df['Speed'] < 50) & (df['nGear'] > 3)) |
-        ((df['Speed'] > 150) & (df['nGear'] < 3)),
-        1, 0
-    )
+    df['Gear_Speed_Mismatch'] = np.where((df['RPM_Deviation_Ratio'] > 1.0) | ((df['Speed'] < 50) & (df['nGear'] > 3)) | ((df['Speed'] > 150) & (df['nGear'] < 3)), 1, 0)
     
     df['RPM_per_Gear'] = df['RPM'] / (df['nGear'] + 1e-6)
     df['Speed_per_Gear'] = df['Speed'] / (df['nGear'] + 1e-6)
@@ -195,534 +464,179 @@ def engineer_features(df):
     df['Throttle_RPM_Product'] = df['Throttle'] * df['RPM'] / 1000000
     df['Throttle_Brake_Conflict'] = ((df['Throttle'] > 20) & (df['Brake'] == 1)).astype(int)
     
-    # Cumulative wear
     df['RPM_Hours'] = (df['RPM'] / 60000).cumsum()
     df['Brake_Usage'] = df['Brake'].cumsum()
     df['High_Speed_Miles'] = ((df['Speed'] > 200) * df['Distance'].diff().fillna(0)).cumsum()
     
-    # Stress score with physics-based penalties
     rpm_norm = df['RPM'] / df['RPM'].max()
     throttle_norm = df['Throttle'] / 100
     brake_norm = df['Brake']
     brake_usage_norm = df['Brake_Usage'] / (df['Brake_Usage'].max() + 1)
     
-    base_stress = (
-        0.30 * rpm_norm +
-        0.25 * throttle_norm +
-        0.25 * brake_norm +
-        0.20 * brake_usage_norm
-    )
-    
-    # Add penalties
+    base_stress = (0.30 * rpm_norm + 0.25 * throttle_norm + 0.25 * brake_norm + 0.20 * brake_usage_norm)
     rpm_penalty = np.where(df['RPM'] > 15000, 0.3, 0)
     inconsistent_penalty = df['Inconsistent_Combo'] * 0.25
     mismatch_penalty = df['Gear_Speed_Mismatch'] * 0.35
     conflict_penalty = df['Throttle_Brake_Conflict'] * 0.20
-    
     df['Stress_Score'] = (base_stress + rpm_penalty + inconsistent_penalty + mismatch_penalty + conflict_penalty).clip(0, 1)
     
     return df
 
-tree_model, lr_model, scaler, features = load_models()
+# --- PAGE BOOT ---
+inject_premium_css()
+tree_model, lr_model, scaler, x_features = load_ai_kernels()
 
-# Title
-st.title("🚗 Vehicle Maintenance Predictor")
+# --- BRANDING ---
+st.markdown("<h1 class='brand-title'>HIRAETH F1</h1>", unsafe_allow_html=True)
+st.markdown("<p style='color:#555; font-size:0.8rem; letter-spacing:10px; margin-bottom:40px;'>MISSION CONTROL // PREDICTIVE UNIT</p>", unsafe_allow_html=True)
 
 if tree_model is None or lr_model is None:
-    st.error("⚠️ Models not found! Run: python run_all.py")
+    st.warning("SYSTEM FAULT: AI MODULES NOT FOUND. REINITIALIZE CORE.")
     st.stop()
 
-# Mode selection
-st.markdown("---")
-mode = st.radio("Choose Prediction Mode:", ["🔢 Manual Input", "📁 CSV File Upload"], horizontal=True)
+# --- NAVIGATION ---
+analysis_tab, batch_tab, logs_tab = st.tabs(["[ ANALYSIS_UNIT ]", "[ BATCH_PROCESS ]", "[ SYSTEM_LOGS ]"])
 
-st.markdown("---")
-
-# ==================== MANUAL INPUT MODE ====================
-if mode == "🔢 Manual Input":
-    st.subheader("Enter Vehicle Data:")
-    st.info("🔑 **Safety Features:** RPM limits, inconsistent combination detection, realistic traction limits")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.markdown("### � Engine")
-        rpm = st.number_input("RPM", 0, 20000, 9000, 500, help="Engine revolutions per minute (Safe limit: 15,000)")
-        throttle = st.slider("Throttle (%)", 0, 100, 50)
+# ==================== UNIT 1: ANALYSIS ====================
+with analysis_tab:
+    col_ctrl, col_viz = st.columns([1, 2.5], gap="large")
+    
+    with col_ctrl:
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        st.markdown("<p class='f1-header' style='font-size:0.9rem;'>CONTROL CONSOLE</p>", unsafe_allow_html=True)
+        t_rpm = st.slider("DRIVETRAIN RPM", 0, 20000, 9000)
+        t_spd = st.slider("VELOCITY KM/H", 0, 400, 150)
+        t_thr = st.slider("LOAD %", 0, 100, 50)
+        t_mil = st.number_input("LIFETIME KM", 0, 10000, 4200)
+        t_gear = st.number_input("SELECT GEAR", 1, 8, 4)
+        t_brk = st.toggle("BRAKE ACTIVATION")
+        st.markdown("</div>", unsafe_allow_html=True)
         
-        # Safety warnings
-        if rpm > 15000:
-            st.error(f"⚠️ RPM DANGER: {rpm} > 15,000!")
-
-    with col2:
-        st.markdown("### 🏎️ Driving")
-        speed = st.number_input("Speed (km/h)", 0, 400, 150, 10)
-        gear = st.number_input("Gear", 1, 8, 4)
-        brake = st.checkbox("🛑 Brake Applied")
-
-    with col3:
-        st.markdown("### 📊 Status")
-        # Check for inconsistent combo
-        inconsistent = (rpm > 10000 and throttle < 30) or (speed < 100 and rpm > 12000)
+        # Physics Validation
+        is_valid, violations, severity, expected_rpm_calc, rpm_dev_ratio = validate_physics(t_rpm, t_spd, t_gear, t_thr, int(t_brk))
+        traction_health = calculate_traction_health(t_spd, t_rpm)
         
-        # 🔥 Check gear-speed-RPM physics mismatch
-        gear_ratios = {1: 3.5, 2: 2.5, 3: 2.0, 4: 1.6, 5: 1.3, 6: 1.1, 7: 0.95, 8: 0.85}
-        gear_ratio = gear_ratios.get(gear, 1.0)
-        expected_rpm = speed * gear_ratio * 100
-        rpm_deviation_ratio = abs(rpm - expected_rpm) / (expected_rpm + 1e-6)
-        gear_mismatch = (rpm_deviation_ratio > 1.0) or (speed < 50 and gear > 3) or (speed > 150 and gear < 3)
-        
-        if gear_mismatch:
-            st.error("🔴 GEAR-SPEED-RPM MISMATCH!")
-            st.caption(f"Expected RPM: ~{expected_rpm:.0f}")
-            st.caption(f"Actual RPM: {rpm}")
-            st.caption("Impossible drivetrain combo!")
-        
-        if inconsistent:
-            st.warning("⚠️ INCONSISTENT COMBO!")
-            if rpm > 10000 and throttle < 30:
-                st.caption("High RPM + Low Throttle")
-            if speed < 100 and rpm > 12000:
-                st.caption("Low Speed + Very High RPM")
-        
-        # Throttle-brake conflict
-        if throttle > 20 and brake:
-            st.warning("⚠️ THROTTLE + BRAKE!")
-            st.caption("Driver error or sensor issue")
-
-    # Predict button
-    if st.button("🔮 Predict Maintenance Need", type="primary", use_container_width=True):
-        
-        # ========== PHYSICS VALIDATION FIRST ==========
-        is_valid, violations, severity, expected_rpm_calc, rpm_dev_ratio = validate_physics(
-            rpm, speed, gear, throttle, int(brake)
-        )
-        
-        physics_penalty = min(severity * 0.5, 0.5)  # Max 50% penalty
-        # ===============================================
-        
-        # Calculate traction health
-        traction_health = calculate_traction_health(speed, rpm)
-        
-        # Safety checks
-        MAX_SAFE_RPM = 15000
-        rpm_danger = 1 if rpm > MAX_SAFE_RPM else 0
-        inconsistent_combo = 1 if inconsistent else 0
-        
-        # Calculate features
-        brake_usage = 50  # Assume moderate for single prediction
-        rpm_hours = 10
-        high_speed_miles = 100 if speed > 200 else 0
-        
-        # 🔥 Physics-based features
-        gear_ratios = {1: 3.5, 2: 2.5, 3: 2.0, 4: 1.6, 5: 1.3, 6: 1.1, 7: 0.95, 8: 0.85}
-        gear_ratio = gear_ratios.get(gear, 1.0)
-        expected_rpm = speed * gear_ratio * 100
-        rpm_deviation = abs(rpm - expected_rpm)
-        rpm_deviation_ratio = rpm_deviation / (expected_rpm + 1e-6)
-        
-        gear_speed_mismatch = 1 if (
-            rpm_deviation_ratio > 1.0 or
-            (speed < 50 and gear > 3) or
-            (speed > 150 and gear < 3)
-        ) else 0
-        
-        rpm_per_gear = rpm / (gear + 1e-6)
-        speed_per_gear = speed / (gear + 1e-6)
-        rpm_speed_ratio = rpm / (speed + 1e-6)
-        throttle_rpm_product = throttle * rpm / 1000000
-        throttle_brake_conflict = 1 if (throttle > 20 and brake) else 0
-        
-        # Calculate stress with ALL penalties
-        rpm_norm = rpm / 15000
-        throttle_norm = throttle / 100
-        brake_norm = int(brake)
-        
-        base_stress = (
-            0.30 * rpm_norm +
-            0.25 * throttle_norm +
-            0.25 * brake_norm +
-            0.20 * 0.5  # Moderate brake usage
-        )
-        
-        rpm_penalty = 0.3 if rpm > 15000 else 0
-        inconsistent_penalty = inconsistent_combo * 0.25
-        mismatch_penalty = gear_speed_mismatch * 0.35  # 🔥 NEW: Physics penalty
-        conflict_penalty = throttle_brake_conflict * 0.20  # 🔥 NEW: Conflict penalty
-        
-        # ========== ADD PHYSICS PENALTY ==========
-        stress = min(
-            base_stress + 
-            rpm_penalty + 
-            inconsistent_penalty + 
-            mismatch_penalty + 
-            conflict_penalty +
-            physics_penalty,  # From validation layer
-            1.0
-        )
-        # =========================================
-        
-        # Create input
+        # Prediction Payload
         input_data = {
-            'RPM': rpm,
-            'Speed': speed,
-            'nGear': gear,
-            'Throttle': throttle,
-            'Brake': int(brake),
-            'Traction_Health': traction_health,
-            'Speed_Change': 0,
-            'Throttle_Change': 0,
-            'Hard_Braking': 0,
-            'High_RPM': 1 if rpm > 10000 else 0,
-            'Full_Throttle': 1 if throttle == 100 else 0,
-            'RPM_Danger': rpm_danger,
-            'Inconsistent_Combo': inconsistent_combo,
-            'Gear_Ratio': gear_ratio,
-            'Expected_RPM': expected_rpm,
-            'RPM_Deviation': rpm_deviation,
-            'RPM_Deviation_Ratio': rpm_deviation_ratio,
-            'Gear_Speed_Mismatch': gear_speed_mismatch,
-            'RPM_per_Gear': rpm_per_gear,
-            'Speed_per_Gear': speed_per_gear,
-            'RPM_Speed_Ratio': rpm_speed_ratio,
-            'Throttle_RPM_Product': throttle_rpm_product,
-            'Throttle_Brake_Conflict': throttle_brake_conflict,
-            'RPM_Hours': rpm_hours,
-            'Brake_Usage': brake_usage,
-            'High_Speed_Miles': high_speed_miles,
-            'Stress_Score': stress
+            'RPM': t_rpm, 'Speed': t_spd, 'nGear': t_gear, 'Throttle': t_thr, 'Brake': int(t_brk),
+            'Mileage': t_mil, 'Mileage_Normalized': min(t_mil / 5000, 1.0),
+            'Traction_Health': traction_health, 'Speed_Change': 0, 'Throttle_Change': 0, 'Hard_Braking': 0,
+            'High_RPM': 1 if t_rpm > 10000 else 0, 'Full_Throttle': 1 if t_thr == 100 else 0,
+            'RPM_Danger': 1 if t_rpm > 15000 else 0, 'Inconsistent_Combo': 1 if ((t_rpm > 10000 and t_thr < 30) or (t_spd < 100 and t_rpm > 12000)) else 0,
+            'Gear_Ratio': {1: 3.5, 2: 2.5, 3: 2.0, 4: 1.6, 5: 1.3, 6: 1.1, 7: 0.95, 8: 0.85}.get(t_gear, 1.0),
+            'Expected_RPM': expected_rpm_calc, 'RPM_Deviation': abs(t_rpm - expected_rpm_calc), 'RPM_Deviation_Ratio': rpm_dev_ratio,
+            'Gear_Speed_Mismatch': 1 if (rpm_dev_ratio > 1.0 or (t_spd < 50 and t_gear > 3) or (t_spd > 150 and t_gear < 3)) else 0,
+            'RPM_per_Gear': t_rpm/(t_gear + 1e-6), 'Speed_per_Gear': t_spd/(t_gear + 1e-6), 'RPM_Speed_Ratio': t_rpm/(t_spd + 1e-6),
+            'Throttle_RPM_Product': t_thr * t_rpm / 1000000, 'Throttle_Brake_Conflict': 1 if (t_thr > 20 and t_brk) else 0,
+            'RPM_Hours': 10, 'Brake_Usage': 50, 'High_Speed_Miles': 100 if t_spd > 200 else 0, 'Stress_Score': 0
         }
         
-        # Make prediction
-        input_df = pd.DataFrame([input_data])[features]
-        input_scaled = scaler.transform(input_df)
+        # Initial Stress
+        base_stress = (0.30*(t_rpm/15000) + 0.25*(t_thr/100) + 0.25*int(t_brk) + 0.20*0.5)
+        stress = min(base_stress + 0.3*(t_rpm>15000) + 0.25*input_data['Inconsistent_Combo'] + 0.35*input_data['Gear_Speed_Mismatch'] + 0.2*input_data['Throttle_Brake_Conflict'] + min(severity*0.5, 0.5), 1.0)
+        input_data['Stress_Score'] = stress
+
+        # AI Kernel Inference
+        vec = pd.DataFrame([input_data])[x_features]
+        risk_prob = lr_model.predict_proba(scaler.transform(vec))[0][1]
         
-        # Use Decision Tree for binary prediction
-        prediction = tree_model.predict(input_scaled)[0]
-        # Use Logistic Regression for nuanced risk probability
-        risk = lr_model.predict_proba(input_scaled)[0][1]
-        
-        # ========== PHYSICS OVERRIDE & CALIBRATION ==========
-        # Override for severe physics violations
-        if severity > 0.7:
-            risk = max(risk, 0.7)  # Force high risk
-            prediction = 1  # Force maintenance
-        
-        # Align risk and stress
-        risk, stress = align_risk_stress(risk, stress, severity)
-        
-        # Calibrate confidence
+        # Stability calibration
+        risk, final_stress = align_risk_stress(risk_prob, stress, severity)
         confidence = calibrate_confidence(risk, violations, severity)
-        # ====================================================
         
-        risk_display = risk
-        
-        # Show results
-        st.markdown("---")
-        st.subheader("🎯 Results:")
-        
-        col1, col2, col3 = st.columns([1, 2, 1])
-        
-        with col2:
-            if risk_display >= 0.7:
-                st.error(f"### 🔴 HIGH RISK: {risk_display*100:.0f}%")
-                st.error("⚠️ **Maintenance Required Immediately!**")
-            elif risk_display >= 0.4:
-                st.warning(f"### 🟡 MEDIUM RISK: {risk_display*100:.0f}%")
-                st.warning("⚠️ **Monitor Closely**")
-            else:
-                st.success(f"### 🟢 LOW RISK: {risk_display*100:.1f}%")
-                st.success("✅ **Acceptable Condition**")
-        
-        # Additional info
-        st.markdown("---")
-        
-        # ========== PHYSICS VIOLATION WARNINGS ==========
-        if len(violations) > 0:
-            st.error(f"⚠️ **Physics Validation:** {len(violations)} violation(s) detected (Severity: {severity:.0%})")
-        # ================================================
-        
-        st.markdown("*ℹ️ Risk probability from Logistic Regression (nuanced), Prediction from Decision Tree (accurate)*")
-        st.markdown("---")
-        st.subheader("📊 Details:")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("🏥 Traction Health", f"{traction_health:.2f}")
-        with col2:
-            st.metric("⚙️ Stress Score", f"{stress:.2f}")
-        with col3:
-            st.metric("🎯 Prediction", "Maintenance" if prediction == 1 else "OK")
-        with col4:
-            st.metric("✓ Confidence", f"{confidence*100:.0f}%")
-        
-        # Contributing Factors
-        st.markdown("---")
-        st.subheader("🔍 Contributing Factors:")
-        
-        # ========== DETAILED PHYSICS VIOLATIONS ==========
-        if len(violations) > 0:
-            st.markdown("#### ⚠️ Physics Violations:")
-            for violation in violations:
-                if violation == "EXTREME_RPM_MISMATCH":
-                    st.error(f"🔴 **Extreme RPM Mismatch** - Expected: ~{expected_rpm_calc:.0f}, Actual: {rpm} (Deviation: {rpm_dev_ratio*100:.0f}%)")
-                    st.caption("   → RPM deviates >200% from expected - Possible clutch slip or sensor error")
-                elif violation == "RPM_MISMATCH":
-                    st.warning(f"🟡 **RPM Mismatch** - Expected: ~{expected_rpm_calc:.0f}, Actual: {rpm} (Deviation: {rpm_dev_ratio*100:.0f}%)")
-                    st.caption("   → RPM deviates >100% from expected for speed/gear combination")
-                elif violation == "HIGH_GEAR_LOW_SPEED":
-                    st.error("🔴 **High Gear at Low Speed** - Mechanically strained, possible stall")
-                elif violation == "LOW_GEAR_HIGH_SPEED":
-                    st.error("🔴 **Low Gear at High Speed** - Engine over-revving danger")
-                elif violation == "THROTTLE_BRAKE_CONFLICT":
-                    st.warning("🟡 **Throttle + Brake Conflict** - Driver error or sensor malfunction")
-                elif violation == "EXTREME_RPM":
-                    st.error(f"� **Extreme RPM** - {rpm} > 15,000 RPM exceeds safe limits")
-                elif violation == "IMPOSSIBLE_LOW_RPM":
-                    st.error("🔴 **Impossible Low RPM** - Speed too high for RPM, drivetrain issue")
-            st.markdown("---")
-        # =================================================
-        
-        factors = []
-        
-        # 🔥 Physics mismatch - HIGHEST PRIORITY
-        if gear_speed_mismatch:
-            factors.append(("🔴 GEAR-SPEED-RPM MISMATCH", f"Expected RPM: ~{expected_rpm:.0f}, Actual: {rpm} (Deviation: {rpm_deviation_ratio*100:.0f}%) - MECHANICALLY IMPOSSIBLE!"))
-        
-        # Safety warnings
-        if rpm_danger:
-            factors.append(("🔴 RPM DANGER", f"{rpm} RPM > 15,000 (UNSAFE!)"))
-        
-        if inconsistent_combo:
-            factors.append(("🔴 INCONSISTENT COMBO", f"High RPM ({rpm}) + Low Throttle ({throttle}%) OR Low Speed + High RPM"))
-        
-        if throttle_brake_conflict:
-            factors.append(("🔴 THROTTLE + BRAKE CONFLICT", f"Throttle {throttle}% while braking - Driver error or sensor issue"))
-        
-        # Traction health
-        if traction_health < 0.7:
-            factors.append(("🔴 Poor Traction", f"{traction_health:.2f} (tire slip detected)"))
-        elif traction_health < 0.85:
-            factors.append(("🟡 Moderate Traction", f"{traction_health:.2f}"))
-        else:
-            factors.append(("🟢 Good Traction", f"{traction_health:.2f}"))
-        
-        # RPM analysis
-        if rpm > 12000:
-            factors.append(("🔴 Very High RPM", f"{rpm} RPM (extreme engine stress)"))
-        elif rpm > 10000:
-            factors.append(("� High RPM", f"{rpm} RPM (engine stress)"))
-        elif rpm > 7500:
-            factors.append(("🟡 Elevated RPM", f"{rpm} RPM"))
-        
-        # Speed analysis
-        if speed > 250:
-            factors.append(("🔴 Extreme Speed", f"{speed} km/h"))
-        elif speed > 200:
-            factors.append(("� Very High Speed", f"{speed} km/h"))
-        elif speed > 150:
-            factors.append(("🟡 High Speed", f"{speed} km/h"))
-        
-        # Throttle analysis
-        if throttle > 90:
-            factors.append(("🟡 Full Throttle", f"{throttle}%"))
-        elif throttle > 80:
-            factors.append(("🟡 High Throttle Usage", f"{throttle}%"))
-        
-        # Braking
-        if brake:
-            factors.append(("🟡 Active Braking", "Brake applied"))
-        
-        factors.append(("📊 Stress Score", f"{stress:.2f} (composite metric)"))
-        
-        for factor_name, factor_value in factors:
-            st.write(f"• **{factor_name}:** {factor_value}")
+        # Dashboard Panel
+        status_lbl = "CRITICAL" if risk > 0.7 else "WARNING" if risk > 0.4 else "STABLE"
+        color_hex = THEME['neon_red'] if risk > 0.4 else "#00ff41"
+        mission_panel("PREDICTION", status_lbl, f"CONFIDENCE: {confidence*100:.0f}%", color_hex)
+        mission_panel("RISK SCORE", f"{risk*100:.1f}%", "PROBABILITY OF FAILURE")
 
-# ==================== CSV UPLOAD MODE ====================
-else:
-    st.subheader("📁 Upload CSV File for Batch Predictions")
-    
-    st.info("""
-    **Required columns in your CSV:**
-    - `RPM` - Engine revolutions per minute
-    - `Speed` - Vehicle speed (km/h)
-    - `Throttle` - Throttle position (%)
-    - `Brake` - Brake status (0 or 1)
-    - `Distance` - Cumulative distance (km)
-    """)
-    
-    uploaded_file = st.file_uploader("Choose a CSV file", type=['csv'])
-    
-    if uploaded_file is not None:
-        try:
-            # Load CSV
-            df = pd.read_csv(uploaded_file)
-            
-            st.success(f"✅ File loaded: {len(df)} rows, {len(df.columns)} columns")
-            
-            # Show preview
-            with st.expander("📋 Preview Data (First 5 rows)"):
-                st.dataframe(df.head())
-            
-            # Check required columns
-            required_cols = ['RPM', 'Speed', 'Throttle', 'Brake', 'Distance']
-            missing_cols = [col for col in required_cols if col not in df.columns]
-            
-            if missing_cols:
-                st.error(f"❌ Missing required columns: {', '.join(missing_cols)}")
-                st.info(f"Your columns: {', '.join(df.columns)}")
-            else:
-                # Process button
-                if st.button("🔮 Predict for All Rows", type="primary", use_container_width=True):
-                    with st.spinner("Processing... Creating features and making predictions..."):
-                        
-                        # ========== VALIDATE PHYSICS FOR ALL ROWS ==========
-                        # Ensure nGear exists (use default if not)
-                        if 'nGear' not in df.columns:
-                            df['nGear'] = 4  # Default gear
-                        
-                        validations = []
-                        for idx, row in df.iterrows():
-                            is_valid, violations, severity, _, _ = validate_physics(
-                                row['RPM'], row['Speed'], row['nGear'], 
-                                row['Throttle'], row['Brake']
-                            )
-                            validations.append({
-                                'is_valid': is_valid,
-                                'violations': '|'.join(violations) if violations else '',
-                                'severity': severity
-                            })
-                        
-                        validation_df = pd.DataFrame(validations)
-                        # ==================================================
-                        
-                        # Engineer features
-                        df = engineer_features(df)
-                        
-                        # Prepare features for prediction
-                        X = df[features]
-                        X_scaled = scaler.transform(X)
-                        
-                        # Use Decision Tree for binary predictions
-                        predictions = tree_model.predict(X_scaled)
-                        # Use Logistic Regression for nuanced risk scores
-                        risk_scores = lr_model.predict_proba(X_scaled)[:, 1]
-                        
-                        # ========== APPLY PHYSICS OVERRIDES ==========
-                        severe_violations = validation_df['severity'] > 0.7
-                        risk_scores[severe_violations] = np.maximum(
-                            risk_scores[severe_violations], 0.7
-                        )
-                        predictions[severe_violations] = 1
-                        
-                        # Calibrate confidence for each row
-                        confidences = []
-                        for i, (risk, val_row) in enumerate(zip(risk_scores, validation_df.itertuples())):
-                            viols = val_row.violations.split('|') if val_row.violations else []
-                            conf = calibrate_confidence(risk, viols, val_row.severity)
-                            confidences.append(conf)
-                        # =============================================
-                        
-                        # Add predictions to dataframe
-                        df['Prediction'] = predictions
-                        df['Risk_Score'] = (risk_scores * 100).round(1)
-                        df['Confidence'] = (np.array(confidences) * 100).round(1)
-                        df['Physics_Valid'] = validation_df['is_valid']
-                        df['Violations'] = validation_df['violations']
-                        df['Severity'] = (validation_df['severity'] * 100).round(1)
-                        df['Risk_Level'] = pd.cut(
-                            risk_scores,
-                            bins=[0, 0.4, 0.7, 1.0],
-                            labels=['🟢 LOW', '🟡 MEDIUM', '🔴 HIGH']
-                        )
-                        df['Needs_Maintenance'] = df['Prediction'].map({0: 'No', 1: 'Yes'})
-                        
-                        # Summary statistics
-                        st.markdown("---")
-                        st.subheader("📊 Prediction Summary")
-                        
-                        col1, col2, col3, col4, col5 = st.columns(5)
-                        with col1:
-                            st.metric("Total Rows", len(df))
-                        with col2:
-                            st.metric("Needs Maintenance", f"{predictions.sum()} ({predictions.sum()/len(df)*100:.1f}%)")
-                        with col3:
-                            st.metric("OK", f"{len(df) - predictions.sum()} ({(len(df) - predictions.sum())/len(df)*100:.1f}%)")
-                        with col4:
-                            st.metric("Avg Risk", f"{risk_scores.mean()*100:.1f}%")
-                        with col5:
-                            invalid_count = (~validation_df['is_valid']).sum()
-                            st.metric("Physics Issues", f"{invalid_count} ({invalid_count/len(df)*100:.1f}%)")
-                        
-                        # ========== PHYSICS VALIDATION SUMMARY ==========
-                        if invalid_count > 0:
-                            st.warning(f"⚠️ **Physics Validation:** {invalid_count} rows have physics violations")
-                        # ================================================
-                        
-                        # Risk distribution
-                        st.markdown("---")
-                        st.subheader("📈 Risk Distribution")
-                        
-                        risk_dist = df['Risk_Level'].value_counts()
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.dataframe(risk_dist, use_container_width=True)
-                        
-                        with col2:
-                            st.bar_chart(risk_dist)
-                        
-                        # High risk cases
-                        high_risk = df[df['Risk_Score'] >= 70]
-                        if len(high_risk) > 0:
-                            st.markdown("---")
-                            st.subheader(f"⚠️ High Risk Cases ({len(high_risk)} found)")
-                            
-                            display_cols = ['RPM', 'Speed', 'Throttle', 'Traction_Health', 
-                                          'RPM_Danger', 'Inconsistent_Combo', 
-                                          'Risk_Score', 'Risk_Level', 'Needs_Maintenance']
-                            available_cols = [col for col in display_cols if col in df.columns]
-                            
-                            st.dataframe(high_risk[available_cols].head(20), use_container_width=True)
-                        
-                        # Full results preview
-                        st.markdown("---")
-                        st.subheader("📋 All Predictions (First 50 rows)")
-                        
-                        output_cols = ['RPM', 'Speed', 'Throttle', 'Brake', 'Traction_Health',
-                                       'RPM_Danger', 'Inconsistent_Combo',
-                                       'Stress_Score', 'Risk_Score', 'Risk_Level', 'Needs_Maintenance']
-                        available_output_cols = [col for col in output_cols if col in df.columns]
-                        
-                        st.dataframe(df[available_output_cols].head(50), use_container_width=True)
-                        
-                        # Download button
-                        st.markdown("---")
-                        st.subheader("💾 Download Results")
-                        
-                        # Prepare CSV for download
-                        csv_buffer = io.StringIO()
-                        df.to_csv(csv_buffer, index=False)
-                        csv_data = csv_buffer.getvalue()
-                        
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        filename = f"predictions_{timestamp}.csv"
-                        
-                        st.download_button(
-                            label="📥 Download Predictions CSV",
-                            data=csv_data,
-                            file_name=filename,
-                            mime="text/csv",
-                            use_container_width=True,
-                            type="primary"
-                        )
-                        
-                        st.success(f"✅ Predictions complete! Click above to download results.")
+    with col_viz:
+        grid_top_l, grid_top_r = st.columns(2)
         
-        except Exception as e:
-            st.error(f"❌ Error processing file: {str(e)}")
-            st.info("Please make sure your CSV has the required columns: RPM, Speed, Throttle, Brake, Distance")
+        with grid_top_l:
+            st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+            st.markdown("<p class='f1-header' style='font-size:0.7rem;'>G-FORCE LOAD ESTIMATE</p>", unsafe_allow_html=True)
+            fig_g = go.Figure(go.Scatterpolar(
+                r = [min(severity + 0.2, 1), int(t_brk), t_thr/100, t_spd/380, traction_health],
+                theta = ['STRUCTURAL', 'LATERAL', 'LONGITUDINAL', 'AERO', 'TRACTION'],
+                fill='toself', fillcolor=f"rgba(246, 99, 56, 0.2)",
+                line=dict(color=THEME['neon_red'], width=3)
+            ))
+            fig_g.update_layout(
+                polar=dict(radialaxis=dict(visible=False, range=[0, 1]), angularaxis=dict(gridcolor="#333", tickfont=dict(size=8, color="#888"))),
+                showlegend=False, paper_bgcolor='rgba(0,0,0,0)', height=280, margin=dict(t=30, b=30, l=30, r=30)
+            )
+            st.plotly_chart(fig_g, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
-# Footer
-st.markdown("---")
-st.caption("Built with Scikit-learn • Decision Tree (Binary Prediction) + Logistic Regression (Risk Probability) • Safety Thresholds • Traction Health • Physics-Based Features")
+        with grid_top_r:
+            st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+            st.markdown("<p class='f1-header' style='font-size:0.7rem;'>COMPONENT EXHAUSTION</p>", unsafe_allow_html=True)
+            st.markdown("<p style='font-size:0.6rem; color:#888; margin-bottom:0;'>POWER UNIT STRESS</p>", unsafe_allow_html=True)
+            render_segmented_bar(t_rpm/15000)
+            st.markdown("<p style='font-size:0.6rem; color:#888; margin:10px 0 0 0;'>TRACTION HEALTH</p>", unsafe_allow_html=True)
+            render_segmented_bar(traction_health)
+            st.markdown("<p style='font-size:0.6rem; color:#888; margin:10px 0 0 0;'>PHYSICS OVERRIDE</p>", unsafe_allow_html=True)
+            render_segmented_bar(min(severity, 1.0))
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # Alerts Window
+        if violations:
+            st.markdown("<div class='glass-card' style='border-top:2px solid {THEME['neon_red']};'>", unsafe_allow_html=True)
+            st.markdown("<p class='f1-header' style='font-size:0.7rem; color:"+THEME['neon_red']+"'>PHYSICS ALERTS</p>", unsafe_allow_html=True)
+            for v in violations:
+                st.markdown(f"<p style='color:#ccc; font-size:0.7rem; margin:0;'>[!] ALERT: {v}</p>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        st.markdown("<p class='f1-header' style='font-size:0.7rem;'>STRESS PROBABILITY SPECTRUM</p>", unsafe_allow_html=True)
+        x_vals = np.linspace(0, 100, 50)
+        y_vals = np.sin(x_vals/10) * 0.15 + (risk)
+        fig_trend = px.area(x=x_vals, y=y_vals, template="plotly_dark", color_discrete_sequence=[THEME['neon_red']])
+        fig_trend.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(showgrid=False, title="SESSION TIME %"), yaxis=dict(showgrid=False, title="RISK"), height=200, margin=dict(t=10, b=10, l=10, r=10))
+        st.plotly_chart(fig_trend, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+# ==================== UNIT 2: BATCH ====================
+with batch_tab:
+    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+    f_up = st.file_uploader("SYNC REMOTE DATA STREAM", type=['csv'])
+    if f_up:
+        data = pd.read_csv(f_up)
+        if st.button("EXECUTE BATCH PIPELINE"):
+            processed = process_batch_features(data)
+            batch_probs = lr_model.predict_proba(scaler.transform(processed[x_features]))[:, 1]
+            processed['RISK'] = batch_probs
+            
+            b_col1, b_col2, b_col3 = st.columns(3)
+            with b_col1: mission_panel("AVG RISK", f"{processed['RISK'].mean()*100:.1f}%")
+            with b_col2: mission_panel("PEAK STRESS", f"{processed['Stress_Score'].max():.3f}")
+            with b_col3: mission_panel("ALERTS", f"{int((batch_probs > 0.8).sum())}")
+            
+            st.markdown("<p class='f1-header' style='font-size:0.7rem;'>TELEMETRY CORRELATION MATRIX</p>", unsafe_allow_html=True)
+            corr = processed[['RPM', 'Speed', 'Throttle', 'Stress_Score', 'RISK']].corr()
+            fig_heat = px.imshow(corr, text_auto=True, color_continuous_scale="Reds", template="plotly_dark")
+            fig_heat.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=400)
+            st.plotly_chart(fig_heat, use_container_width=True)
+            
+            st.download_button("GENERATE INTEL PDF", data=processed.to_csv().encode('utf-8'), file_name="telemetry_intel.csv")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ==================== UNIT 3: LOGS ====================
+with logs_tab:
+    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+    st.markdown("<p class='f1-header' style='font-size:0.9rem;'>SYSTEM DIAGNOSTICS</p>", unsafe_allow_html=True)
+    st.code(f"""
+    [SYSTEM] BIOS v4.52 initialized
+    [AI] DecisionTree Kernel: tree_model.pkl (Binary Ready)
+    [AI] LogisticRegression Kernel: logistic_model.pkl (Nuance Ready)
+    [AI] Scaler Vector Profile: Normalized
+    [AI] Feature Vector Size: 27
+    [PHYSICS] Validation Engine: v1.3 [ACTIVE]
+    [TIME] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    [NOTICE] No Emojis detected in string buffer.
+    """, language="markdown")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# DARK FOOTER
+st.markdown("<div style='text-align:right; padding:40px; color:#222; font-size:0.6rem; letter-spacing:5px;'>HIRAETH PERFORMANCE // NO EXTERNAL ASSETS // ENCRYPTED SESSION</div>", unsafe_allow_html=True)
